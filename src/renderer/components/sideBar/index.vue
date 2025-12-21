@@ -132,6 +132,8 @@ export default {
     handleLeftBottomClick (name) {
       if (name === 'settings') {
         this.$store.dispatch('OPEN_SETTING_WINDOW')
+      } else if (name === 'sync') {
+        console.log('Sync clicked')
       }
     }
   }
