@@ -7,14 +7,23 @@
 /* eslint-disable */
 require('dotenv').config()
 
+const { app, BrowserWindow } = require('electron')
+
 // Install `vue-devtools`
-require('electron').app.on('ready', () => {
+app.on('ready', () => {
   const { default: installExtension, VUEJS_DEVTOOLS } = require('electron-devtools-installer')
   installExtension(VUEJS_DEVTOOLS)
     .then(() => {})
     .catch(err => {
       console.log('Unable to install `vue-devtools`: \n', err)
     })
+})
+
+// Open DevTools for all windows in development mode
+app.on('browser-window-created', (event, window) => {
+  window.webContents.once('did-finish-load', () => {
+    window.webContents.openDevTools()
+  })
 })
 
 /* eslint-enable */
