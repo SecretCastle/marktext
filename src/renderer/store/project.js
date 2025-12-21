@@ -76,6 +76,7 @@ const mutations = {
 const actions = {
   LISTEN_FOR_LOAD_PROJECT ({ commit, dispatch }) {
     ipcRenderer.on('mt::open-directory', (e, pathname) => {
+      console.log('Loading project directory:', pathname)
       commit('SET_ROOT_DIRECTORY', pathname)
       commit('SET_LAYOUT', {
         rightColumn: 'files',

@@ -32,6 +32,7 @@
       <rename></rename>
       <tweet></tweet>
       <import-modal></import-modal>
+      <conflict-dialog></conflict-dialog>
     </div>
   </div>
 </template>
@@ -48,6 +49,7 @@ import ExportSettingDialog from '@/components/exportSettings'
 import Rename from '@/components/rename'
 import Tweet from '@/components/tweet'
 import ImportModal from '@/components/import'
+import ConflictDialog from '@/components/conflictDialog'
 import { loadingPageMixins } from '@/mixins'
 import { mapState } from 'vuex'
 import bus from '@/bus'
@@ -66,7 +68,8 @@ export default {
     Rename,
     Tweet,
     ImportModal,
-    CommandPalette
+    CommandPalette,
+    ConflictDialog
   },
   mixins: [loadingPageMixins],
   data () {
@@ -139,6 +142,7 @@ export default {
     // module: editor
     dispatch('LISTEN_SCREEN_SHOT')
     dispatch('ASK_FOR_USER_PREFERENCE')
+    dispatch('LISTEN_FOR_COS_CONFIG')
     dispatch('LISTEN_TOGGLE_VIEW')
     dispatch('LISTEN_FOR_CLOSE')
     dispatch('LISTEN_FOR_SAVE_AS')

@@ -93,7 +93,18 @@ const state = {
       branch: ''
     }
   },
-  cliScript: ''
+  cliScript: '',
+
+  // COS configuration
+  cosEnabled: false,
+  cosRemotePrefix: '',
+  cosSyncDirection: 'bidirectional',
+
+  // COS credentials (loaded from .tx/.config, not persisted in preferences.json)
+  cosSecretId: '',
+  cosSecretKey: '',
+  cosBucket: '',
+  cosRegion: ''
 }
 
 const getters = {}
@@ -111,6 +122,13 @@ const mutations = {
   },
   TOGGLE_VIEW_MODE (state, entryName) {
     state[entryName] = !state[entryName]
+  },
+  SET_COS_CONFIG (state, config) {
+    // 更新 COS 凭证信息（从 .tx/.config 加载）
+    if (config.SecretId !== undefined) state.cosSecretId = config.SecretId
+    if (config.SecretKey !== undefined) state.cosSecretKey = config.SecretKey
+    if (config.Bucket !== undefined) state.cosBucket = config.Bucket
+    if (config.Region !== undefined) state.cosRegion = config.Region
   }
 }
 
@@ -141,6 +159,15 @@ const actions = {
     ipcRenderer.send('mt::select-default-directory-to-open')
   },
 
+  LISTEN_CONFIG_CHANGE ({ commit, dispatch }) {
+    ipcRenderer.on('mt::cos-config-changed', (event, { config }) => {
+      console.log('Received COS config change:', config)
+      if (config) {
+        commit('SET_COS_CONFIG', config)
+      }
+    })
+  },
+
   LISTEN_FOR_VIEW ({ commit, dispatch }) {
     ipcRenderer.on('mt::show-command-palette', () => {
       bus.$emit('show-command-palette')
@@ -156,6 +183,16 @@ const actions = {
     bus.$on('view:toggle-view-entry', entryName => {
       commit('TOGGLE_VIEW_MODE', entryName)
       dispatch('DISPATCH_EDITOR_VIEW_STATE', { [entryName]: state[entryName] })
+    })
+  },
+
+  // Listen for COS config loaded from .tx/.config
+  LISTEN_FOR_COS_CONFIG ({ commit }) {
+    ipcRenderer.on('mt::cos-config-loaded', (event, { config }) => {
+      console.log('Received COS config:', config)
+      if (config) {
+        commit('SET_COS_CONFIG', config)
+      }
     })
   },
 

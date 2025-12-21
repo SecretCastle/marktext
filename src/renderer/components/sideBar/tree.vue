@@ -37,13 +37,13 @@
     <div
       class="project-tree" v-if="projectTree"
     >
-      <div class="title">
+      <div class="title" ref="projectTitle">
         <svg class="icon icon-arrow" :class="{'fold': !showDirectories}" aria-hidden="true" @click.stop="toggleDirectories()">
           <use xlink:href="#icon-arrow"></use>
         </svg>
         <span class="default-cursor text-overflow" @click.stop="toggleDirectories()">{{ projectTree.name }}</span>
       </div>
-      <div class="tree-wrapper" v-show="showDirectories">
+      <div class="tree-wrapper" v-show="showDirectories" ref="treeWrapper">
         <folder
           v-for="(folder, index) of projectTree.folders" :key="index + 'folder'"
           :folder="folder"
@@ -88,6 +88,7 @@ import { mapState } from 'vuex'
 import bus from '../../bus'
 import { createFileOrDirectoryMixins } from '../../mixins'
 import FolderIcon from '@/assets/icons/undraw_folder.svg'
+import { showContextMenu } from '../../contextMenu/sideBar'
 
 export default {
   mixins: [createFileOrDirectoryMixins],
@@ -118,11 +119,41 @@ export default {
   },
   computed: {
     ...mapState({
-      createCache: state => state.project.createCache
+      createCache: state => state.project.createCache,
+      clipboard: state => state.project.clipboard
     })
   },
   created () {
     this.$nextTick(() => {
+      // Add context menu to project root directory title
+      if (this.$refs.projectTitle) {
+        this.$refs.projectTitle.addEventListener('contextmenu', event => {
+          event.preventDefault()
+          if (this.projectTree) {
+            this.$store.dispatch('CHANGE_ACTIVE_ITEM', this.projectTree)
+            showContextMenu(event, !!this.clipboard)
+          }
+        })
+      }
+
+      // Add context menu to tree wrapper (empty area)
+      if (this.$refs.treeWrapper) {
+        this.$refs.treeWrapper.addEventListener('contextmenu', event => {
+          // Only show context menu if clicking on the wrapper itself or empty-project div
+          const target = event.target
+          const isWrapper = target.classList.contains('tree-wrapper')
+          const isEmptyProject = target.classList.contains('empty-project') || target.closest('.empty-project')
+
+          if (isWrapper || isEmptyProject) {
+            event.preventDefault()
+            if (this.projectTree) {
+              this.$store.dispatch('CHANGE_ACTIVE_ITEM', this.projectTree)
+              showContextMenu(event, !!this.clipboard)
+            }
+          }
+        })
+      }
+
       bus.$on('SIDEBAR::show-new-input', this.handleInputFocus)
       // hide rename or create input if needed
       document.addEventListener('click', event => {

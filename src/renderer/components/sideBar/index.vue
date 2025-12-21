@@ -54,6 +54,7 @@ import Tree from './tree.vue'
 import SideBarSearch from './search.vue'
 import Toc from './toc.vue'
 import { mapState } from 'vuex'
+import notice from '@/services/notification'
 
 export default {
   data () {
@@ -75,7 +76,14 @@ export default {
       showSideBar: state => state.layout.showSideBar,
       projectTree: state => state.project.projectTree,
       sideBarWidth: state => state.layout.sideBarWidth,
-      tabs: state => state.editor.tabs
+      tabs: state => state.editor.tabs,
+      isSyncEnabled: state => state.cos && (
+        state.preferences.cosSecretId &&
+        state.preferences.cosSecretKey &&
+        state.preferences.cosBucket &&
+        state.preferences.cosRegion),
+      syncInProgress: state => state.cos && state.cos.syncInProgress,
+      syncStatus: state => state.cos ? state.cos.syncStatus : 'idle'
     }),
     finalSideBarWidth () {
       const { showSideBar, rightColumn, sideBarViewWidth } = this
@@ -85,6 +93,9 @@ export default {
     }
   },
   created () {
+    // Initialize COS sync event listeners
+    this.$store.dispatch('LISTEN_FOR_SYNC_EVENTS')
+
     this.$nextTick(() => {
       const dragBar = this.$refs.dragBar
       let startX = 0
@@ -129,11 +140,62 @@ export default {
         }
       }
     },
-    handleLeftBottomClick (name) {
+    async handleLeftBottomClick (name) {
       if (name === 'settings') {
         this.$store.dispatch('OPEN_SETTING_WINDOW')
       } else if (name === 'sync') {
-        console.log('Sync clicked')
+        if (!this.isSyncEnabled) {
+          // this.$message.warning('请先在设置中配置 COS 同步功能')
+          notice.notify({
+            title: 'COS 同步未配置',
+            type: 'warning',
+            message: '请先在设置中配置 COS 同步功能'
+          })
+          // this.$store.dispatch('OPEN_SETTING_WINDOW', 'cos')
+          return
+        }
+
+        if (this.syncInProgress) {
+          // 如果正在同步，取消同步
+          await this.$store.dispatch('CANCEL_SYNC')
+          // this.$message.info('同步已取消')
+          notice.notify({
+            title: '同步已取消',
+            type: 'info',
+            message: '同步已取消'
+          })
+        } else {
+          // 开始同步
+          try {
+            notice.notify({
+              title: '同步开始',
+              type: 'info',
+              message: 'COS 同步已开始，请稍候...'
+            })
+            const result = await this.$store.dispatch('START_SYNC')
+            if (result.success) {
+              const { stats } = result
+              notice.notify({
+                title: '同步完成',
+                type: 'success',
+                message: `同步完成: 上传 ${stats.uploaded} 个文件，下载 ${stats.downloaded} 个文件，冲突 ${stats.conflicts} 个文件。`
+              })
+            } else {
+              notice.notify({
+                title: '同步失败',
+                type: 'error',
+                message: '同步过程中发生错误: ' + result.message
+              })
+            }
+          } catch (error) {
+            console.error('Sync error:', error)
+            notice.notify({
+              title: '同步失败',
+              type: 'error',
+              message: '同步失败: ' + error.message
+            })
+          }
+        }
       }
     }
   }

@@ -407,5 +407,24 @@
     "description": "Watcher--Whether to use polling. Polling may leads to high CPU utilization but is necessary to watch files over a network.",
     "type": "boolean",
     "default": false
+  },
+  "cosEnabled": {
+    "description": "COS--Whether Tencent Cloud COS sync is enabled.",
+    "type": "boolean",
+    "default": false
+  },
+  "cosRemotePrefix": {
+    "description": "COS--Remote prefix (directory) in COS bucket.",
+    "type": "string",
+    "default": ""
+  },
+  "cosSyncDirection": {
+    "description": "COS--Sync direction: upload, download, or bidirectional.",
+    "enum": [
+      "upload",
+      "download",
+      "bidirectional"
+    ],
+    "default": "bidirectional"
   }
 }

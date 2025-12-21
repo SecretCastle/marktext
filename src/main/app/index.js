@@ -17,6 +17,8 @@ import { watchers } from '../utils/imagePathAutoComplement'
 import { WindowType } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
+import { registerCosHandlers } from '../services/cosHandlers'
+import cosConfig from '../services/cosConfig'
 
 class App {
   /**
@@ -261,6 +263,24 @@ class App {
     if (this._windowManager.windowCount === 1) {
       this._accessor.menu.setActiveWindow(editor.id)
     }
+
+    // 检测并初始化 COS 配置
+    setTimeout(() => {
+      if (editor.browserWindow) {
+        let projectRoot = rootDirectory
+
+        // 如果没有 rootDirectory，尝试从文件列表中查找
+        if (!projectRoot && fileList && fileList.length > 0) {
+          projectRoot = this._findProjectRoot(fileList[0])
+        }
+
+        // 如果找到项目根目录，初始化配置
+        if (projectRoot) {
+          this._initializeCosConfig(projectRoot, editor.browserWindow)
+        }
+      }
+    }, 500)
+
     return editor
   }
 
@@ -421,9 +441,79 @@ class App {
     this._createSettingWindow(category)
   }
 
+  /**
+   * 查找项目根目录（包含 .tx 目录的目录）
+   * @param {string} filePath - 文件或目录路径
+   * @returns {string|null} 项目根目录路径，如果未找到返回 null
+   */
+  _findProjectRoot (filePath) {
+    const fs = require('fs')
+    let currentPath = filePath
+
+    // 如果是文件，先获取其目录
+    try {
+      const stats = fs.statSync(currentPath)
+      if (stats.isFile()) {
+        currentPath = path.dirname(currentPath)
+      }
+    } catch (error) {
+      return null
+    }
+
+    // 向上查找，最多查找 10 层
+    for (let i = 0; i < 10; i++) {
+      const txDir = path.join(currentPath, '.tx')
+      if (fs.existsSync(txDir) && fs.statSync(txDir).isDirectory()) {
+        return currentPath
+      }
+
+      const parentPath = path.dirname(currentPath)
+      // 已到达根目录
+      if (parentPath === currentPath) {
+        break
+      }
+      currentPath = parentPath
+    }
+
+    return null
+  }
+
+  /**
+   * 自动检测并初始化 COS 配置
+   * @param {string} projectPath - 项目根目录路径
+   * @param {BrowserWindow} win - 浏览器窗口对象
+   */
+  _initializeCosConfig (projectPath, win) {
+    try {
+      log.info(`初始化 COS 配置: ${projectPath}`)
+
+      // 初始化配置（会自动创建 .tx 目录和 .config 如果不存在）
+      cosConfig.init(projectPath)
+
+      // 获取配置
+      const config = cosConfig.getAll()
+
+      log.info('COS 配置内容:', config)
+
+      // 发送配置到渲染进程
+      if (win && win.webContents) {
+        setTimeout(() => {
+          win.webContents.send('mt::cos-config-loaded', {
+            config,
+            projectPath
+          })
+          log.info('COS 配置已加载并发送到渲染进程')
+        }, 500)
+      }
+    } catch (error) {
+      log.error('初始化 COS 配置失败:', error)
+    }
+  }
+
   _listenForIpcMain () {
     registerKeyboardListeners()
     registerSpellcheckerListeners()
+    registerCosHandlers(this._accessor)
 
     ipcMain.on('app-create-editor-window', () => {
       this._createEditorWindow()
@@ -469,6 +559,11 @@ class App {
         const editor = this._windowManager.get(windowId)
         if (editor) {
           editor.openTab(filePath, {}, true)
+          // 查找并初始化项目根目录的 COS 配置
+          const projectRoot = this._findProjectRoot(filePath)
+          if (projectRoot) {
+            this._initializeCosConfig(projectRoot, editor.browserWindow)
+          }
         }
       }
     })
@@ -483,6 +578,13 @@ class App {
             fileList.map(p => normalizeMarkdownPath(p))
               .filter(i => i && !i.isDir)
               .map(i => i.path))
+          // 查找并初始化项目根目录的 COS 配置（使用第一个文件）
+          if (fileList.length > 0) {
+            const projectRoot = this._findProjectRoot(fileList[0])
+            if (projectRoot) {
+              this._initializeCosConfig(projectRoot, editor.browserWindow)
+            }
+          }
         }
       }
     })
@@ -505,10 +607,19 @@ class App {
         const editor = this._windowManager.get(windowId)
         if (editor) {
           editor.openFolder(pathname)
+          // 自动检测并初始化 COS 配置
+          this._initializeCosConfig(pathname, editor.browserWindow)
           return
         }
       }
       this._createEditorWindow(pathname)
+      // 对于新窗口，在窗口创建后初始化配置
+      setTimeout(() => {
+        const editor = this._windowManager.getLast()
+        if (editor && editor.browserWindow) {
+          this._initializeCosConfig(pathname, editor.browserWindow)
+        }
+      }, 1000)
     })
 
     // --- renderer -------------------
