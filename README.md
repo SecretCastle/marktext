@@ -121,41 +121,17 @@ Patreon: Funds will be directly sponsored to Luo Ran (@jocs) who created MarkTex
 Open Collective: All expenses are transparent. The funds will be used for the development and maintenance of MarkText, funding online and offline activities, and acquiring other necessary resources.
 Names and company logos of all sponsors (from both Patreon and Open Collective) will appear on the official website for MarkText and in its README.md file.
 
-**Looking for MarkText-like editing with cloud storage? try Inkio**
 
-<a href="https://inkio.me/" target="_blank">
- <img src="https://inkio.me/static/media/logo.35f605dc31b1a0615087.png" width="100">
-</a>
+## dev-cos
 
-**Platinum Sponsors**
+Support sync local device files to [TencentCOS](https://console.cloud.tencent.com/cos) after configuration.
 
-<a href="https://opencollective.com/marktext#platinum-sponsors">
- <img src="https://opencollective.com/marktext/tiers/platinum-sponsors.svg?avatarHeight=36&width=600">
-</a>
+### how to set config
 
-**Gold Sponsors**
+* open `Setting` -> `Tencent Cos Sync`
+* config `SecretId`,`SecretKey`,`Bucket`,`Region`
+* Click `sync` icon above `Setting` in left sidebar, client will auto sync with local and remote bucket.
 
-<a href="https://opencollective.com/marktext#platinum-sponsors">
-  <img src="https://opencollective.com/marktext/tiers/gold-sponsors.svg?avatarHeight=36&width=600">
-</a>
-
-**Silver Sponsors**
-
-<a href="https://opencollective.com/marktext#platinum-sponsors">
-  <img src="https://opencollective.com/marktext/tiers/silver-sponsors.svg?avatarHeight=36&width=600">
-</a>
-
-**Bronze Sponsors**
-
-<a href="https://opencollective.com/marktext#platinum-sponsors">
-  <img src="https://opencollective.com/marktext/tiers/bronze-sponsors.svg?avatarHeight=36&width=600">
-</a>
-
-**Backers**
-
-<a href="https://opencollective.com/marktext#backers">
-  <img src="https://opencollective.com/marktext/tiers/backer.svg?avatarHeight=36&width=600">
-</a>
 
 ## Screenshot
 
