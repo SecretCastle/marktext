@@ -296,8 +296,13 @@ class SyncService {
       )
 
       if (downloadResult.success) {
-        this.syncStats.downloaded++
-        results.downloaded.push(relativePath)
+        // 只有实际下载的文件才计入统计，跳过的文件不计入
+        if (!downloadResult.skipped) {
+          this.syncStats.downloaded++
+          results.downloaded.push(relativePath)
+        } else {
+          log.info(`文件被跳过，不计入统计: ${relativePath}`)
+        }
       } else {
         this.syncStats.failed++
         results.failed.push({
@@ -342,7 +347,12 @@ class SyncService {
       )
 
       if (downloadResult.success) {
-        results.downloaded.push(relativePath)
+        // 只有实际下载的文件才计入统计，跳过的文件不计入
+        if (!downloadResult.skipped) {
+          results.downloaded.push(relativePath)
+        } else {
+          log.info(`文件被跳过，不计入统计: ${relativePath}`)
+        }
       } else {
         results.failed.push({
           file: relativePath,
@@ -485,8 +495,13 @@ class SyncService {
           )
 
           if (downloadResult.success) {
-            this.syncStats.downloaded++
-            results.downloaded.push(relativePath)
+            // 只有实际下载的文件才计入统计，跳过的文件不计入
+            if (!downloadResult.skipped) {
+              this.syncStats.downloaded++
+              results.downloaded.push(relativePath)
+            } else {
+              log.info(`文件被跳过，不计入统计: ${relativePath}`)
+            }
           } else {
             this.syncStats.failed++
             results.failed.push({ file: relativePath, error: downloadResult.error })
@@ -519,8 +534,13 @@ class SyncService {
         )
 
         if (downloadResult.success) {
-          this.syncStats.downloaded++
-          results.downloaded.push(relativePath)
+          // 只有实际下载的文件才计入统计，跳过的文件不计入
+          if (!downloadResult.skipped) {
+            this.syncStats.downloaded++
+            results.downloaded.push(relativePath)
+          } else {
+            log.info(`文件被跳过，不计入统计: ${relativePath}`)
+          }
         } else {
           this.syncStats.failed++
           results.failed.push({ file: relativePath, error: downloadResult.error })

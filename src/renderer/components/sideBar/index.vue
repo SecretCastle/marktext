@@ -169,6 +169,7 @@ export default {
           // 开始同步
           try {
             notice.notify({
+              time: 0,
               title: '同步开始',
               type: 'info',
               message: 'COS 同步已开始，请稍候...'
