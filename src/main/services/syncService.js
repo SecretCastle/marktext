@@ -122,7 +122,7 @@ class SyncService {
         break
       }
 
-      const relativePath = path.relative(localDir, file.path)
+      const relativePath = path.relative(localDir, file.path).replace(/\\/g, '/')
       const remotePath = remotePrefix ? `${remotePrefix}/${relativePath}` : relativePath
 
       // 检查远程文件是否存在且是否需要更新
@@ -203,7 +203,7 @@ class SyncService {
       }
 
       const remotePath = file.key
-      const relativePath = remotePrefix ? remotePath.substring(remotePrefix.length + 1) : remotePath
+      const relativePath = (remotePrefix ? remotePath.substring(remotePrefix.length + 1) : remotePath).replace(/\\/g, '/')
 
       // 跳过目录标记
       if (relativePath.endsWith('/')) {
@@ -372,13 +372,13 @@ class SyncService {
     // 创建文件映射
     const localFileMap = new Map()
     localFiles.forEach(file => {
-      const relativePath = path.relative(localDir, file.path)
+      const relativePath = path.relative(localDir, file.path).replace(/\\/g, '/')
       localFileMap.set(relativePath, file)
     })
 
     const remoteFileMap = new Map()
     remoteFiles.forEach(file => {
-      const relativePath = remotePrefix ? file.key.substring(remotePrefix.length + 1) : file.key
+      const relativePath = (remotePrefix ? file.key.substring(remotePrefix.length + 1) : file.key).replace(/\\/g, '/')
       if (!relativePath.endsWith('/')) {
         remoteFileMap.set(relativePath, file)
       }
@@ -427,6 +427,21 @@ class SyncService {
         // 比较并同步较新的版本
         const localMtime = localFile.stats.mtimeMs
         const remoteMtime = new Date(remoteFile.lastModified).getTime()
+
+        // 先检查 MD5 是否相同
+        try {
+          const localMD5 = await this._calculateMD5(localFile.path)
+          const remoteETag = remoteFile.etag.replace(/"/g, '')
+
+          if (localMD5 === remoteETag) {
+            // MD5 相同，文件内容一致，跳过
+            log.info(`文件内容相同，跳过同步: ${relativePath}`)
+            continue
+          }
+        } catch (error) {
+          log.error(`计算 MD5 失败: ${localFile.path}`, error)
+          // 如果 MD5 计算失败，继续使用时间戳比较
+        }
 
         if (localMtime > remoteMtime + 1000) {
           // 本地更新，上传

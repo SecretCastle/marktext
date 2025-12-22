@@ -19,6 +19,7 @@ import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { registerCosHandlers } from '../services/cosHandlers'
 import cosConfig from '../services/cosConfig'
+import cosService from '../services/cosService'
 
 class App {
   /**
@@ -494,6 +495,25 @@ class App {
       const config = cosConfig.getAll()
 
       log.info('COS 配置内容:', config)
+
+      // 如果配置有效，自动初始化 COS 服务
+      if (cosConfig.isValid()) {
+        log.info('检测到有效的 COS 配置，自动初始化 COS 服务')
+        const initResult = cosService.initialize({
+          secretId: config.SecretId,
+          secretKey: config.SecretKey,
+          bucket: config.Bucket,
+          region: config.Region
+        })
+
+        if (initResult.success) {
+          log.info('COS 服务自动初始化成功')
+        } else {
+          log.warn('COS 服务自动初始化失败:', initResult.error)
+        }
+      } else {
+        log.info('COS 配置不完整，跳过自动初始化')
+      }
 
       // 发送配置到渲染进程
       if (win && win.webContents) {

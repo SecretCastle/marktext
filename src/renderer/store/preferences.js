@@ -107,7 +107,14 @@ const state = {
   cosRegion: ''
 }
 
-const getters = {}
+const getters = {
+  isEnabled: (state) => {
+    return state.cosRegion &&
+           state.cosBucket &&
+           state.cosSecretId &&
+           state.cosSecretKey
+  }
+}
 
 const mutations = {
   SET_USER_PREFERENCE (state, preference) {
@@ -124,11 +131,13 @@ const mutations = {
     state[entryName] = !state[entryName]
   },
   SET_COS_CONFIG (state, config) {
+    console.log('set cos config in preferences store', config)
     // 更新 COS 凭证信息（从 .tx/.config 加载）
-    if (config.SecretId !== undefined) state.cosSecretId = config.SecretId
-    if (config.SecretKey !== undefined) state.cosSecretKey = config.SecretKey
-    if (config.Bucket !== undefined) state.cosBucket = config.Bucket
-    if (config.Region !== undefined) state.cosRegion = config.Region
+    if (config?.config?.SecretId) state.cosSecretId = config.config.SecretId
+    if (config?.config?.SecretKey) state.cosSecretKey = config.config.SecretKey
+    if (config?.config?.Bucket) state.cosBucket = config.config.Bucket
+    if (config?.config?.Region) state.cosRegion = config.config.Region
+    console.log('Updated COS config in preferences store', state)
   }
 }
 
@@ -163,7 +172,7 @@ const actions = {
     ipcRenderer.on('mt::cos-config-changed', (event, config) => {
       console.log('Received COS config change:', config)
       if (config) {
-        commit('SET_COS_CONFIG', config)
+        commit('SET_COS_CONFIG', { config })
       }
     })
   },

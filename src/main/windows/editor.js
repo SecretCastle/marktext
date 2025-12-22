@@ -10,6 +10,8 @@ import { TITLE_BAR_HEIGHT, editorWinOptions, isLinux, isOsx } from '../config'
 import { showEditorContextMenu } from '../contextMenu/editor'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
+import cosConfig from '../services/cosConfig'
+import cosService from '../services/cosService'
 
 class EditorWindow extends BaseWindow {
   /**
@@ -319,8 +321,60 @@ class EditorWindow extends BaseWindow {
       this._openedRootDirectory = pathname
       ipcMain.emit('watcher-watch-directory', browserWindow, pathname)
       browserWindow.webContents.send('mt::open-directory', pathname)
+
+      // 自动加载 COS 配置
+      this._autoLoadCosConfig(pathname)
     } else {
       this._directoryToOpen = pathname
+    }
+  }
+
+  /**
+   * 自动加载 COS 配置
+   * @private
+   * @param {string} projectPath - 项目根目录路径
+   */
+  _autoLoadCosConfig (projectPath) {
+    try {
+      log.info(`自动加载 COS 配置: ${projectPath}`)
+
+      // 初始化配置（会自动加载 .tx/.config 如果存在）
+      cosConfig.init(projectPath)
+
+      // 获取配置
+      const config = cosConfig.getAll()
+
+      // 如果配置有效，自动初始化 COS 服务
+      if (cosConfig.isValid()) {
+        log.info('检测到有效的 COS 配置，自动初始化 COS 服务')
+        const initResult = cosService.initialize({
+          secretId: config.SecretId,
+          secretKey: config.SecretKey,
+          bucket: config.Bucket,
+          region: config.Region
+        })
+
+        if (initResult.success) {
+          log.info('COS 服务自动初始化成功')
+        } else {
+          log.warn('COS 服务自动初始化失败:', initResult.error)
+        }
+      } else {
+        log.info('COS 配置不完整或不存在，跳过自动初始化')
+      }
+
+      // 发送配置到渲染进程
+      if (this.browserWindow && this.browserWindow.webContents) {
+        setTimeout(() => {
+          this.browserWindow.webContents.send('mt::cos-config-loaded', {
+            config,
+            projectPath
+          })
+          log.info('COS 配置已加载并发送到渲染进程')
+        }, 500)
+      }
+    } catch (error) {
+      log.error('自动加载 COS 配置失败:', error)
     }
   }
 
