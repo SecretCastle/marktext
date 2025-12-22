@@ -135,7 +135,8 @@ Support sync local device files to [TencentCOS](https://console.cloud.tencent.co
 
 ## Screenshot
 
-![](docs/marktext.png?raw=true)
+![](docs/snapshots/marktext-dev-cos1.png?raw=true)
+![](docs/snapshots/marktext-dev-cos2.png?raw=true)
 
 ## Features
 
