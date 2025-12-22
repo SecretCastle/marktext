@@ -130,6 +130,7 @@ function startElectron () {
     '--inspect=5858',
     '--remote-debugging-port=8315',
     '--nolazy',
+    '--no-sandbox',
     path.join(__dirname, '../dist/electron/main.js')
   ])
 

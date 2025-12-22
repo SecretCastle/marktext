@@ -166,6 +166,8 @@ export default {
     dispatch('LISTEN_FOR_RELOAD_IMAGES')
     dispatch('LISTEN_FOR_CONTEXT_MENU')
 
+    dispatch('LISTEN_CONFIG_CHANGE')
+
     // module: notification
     dispatch('LISTEN_FOR_NOTIFICATION')
 

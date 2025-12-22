@@ -147,6 +147,7 @@ export default {
         if (!this.isSyncEnabled) {
           // this.$message.warning('请先在设置中配置 COS 同步功能')
           notice.notify({
+            time: 1000,
             title: 'COS 同步未配置',
             type: 'warning',
             message: '请先在设置中配置 COS 同步功能'
@@ -160,6 +161,7 @@ export default {
           await this.$store.dispatch('CANCEL_SYNC')
           // this.$message.info('同步已取消')
           notice.notify({
+            time: 1000,
             title: '同步已取消',
             type: 'info',
             message: '同步已取消'
@@ -168,6 +170,7 @@ export default {
           // 开始同步
           try {
             notice.notify({
+              time: 1000,
               title: '同步开始',
               type: 'info',
               message: 'COS 同步已开始，请稍候...'
@@ -176,12 +179,14 @@ export default {
             if (result.success) {
               const { stats } = result
               notice.notify({
+                time: 3000,
                 title: '同步完成',
                 type: 'success',
-                message: `同步完成: 上传 ${stats.uploaded} 个文件，下载 ${stats.downloaded} 个文件，冲突 ${stats.conflicts} 个文件。`
+                message: `同步完成: 上传 ${stats.uploaded} 个文件，下载 ${stats.downloaded} 个文件。`
               })
             } else {
               notice.notify({
+                time: 1000,
                 title: '同步失败',
                 type: 'error',
                 message: '同步过程中发生错误: ' + result.message
@@ -190,6 +195,7 @@ export default {
           } catch (error) {
             console.error('Sync error:', error)
             notice.notify({
+              time: 1000,
               title: '同步失败',
               type: 'error',
               message: '同步失败: ' + error.message

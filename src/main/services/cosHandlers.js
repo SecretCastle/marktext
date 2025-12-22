@@ -19,7 +19,7 @@ export function registerCosHandlers (accessor) {
    */
   ipcMain.handle('mt::cos-get-project-root', async (event) => {
     try {
-      const win = BrowserWindow.fromWebContents(event.sender)
+      // const win = BrowserWindow.fromWebContents(event.sender)
 
       // 尝试从所有编辑器窗口中找到打开的项目
       const allWindows = BrowserWindow.getAllWindows()
@@ -106,7 +106,7 @@ export function registerCosHandlers (accessor) {
   ipcMain.handle('mt::cos-save-config', async (event, config) => {
     try {
       log.info('保存 COS 配置')
-
+      log.info('配置内容:', config)
       // 保存到 .tx/config.json
       cosConfig.setAll({
         SecretId: config.SecretId || '',

@@ -160,7 +160,7 @@ const actions = {
   },
 
   LISTEN_CONFIG_CHANGE ({ commit, dispatch }) {
-    ipcRenderer.on('mt::cos-config-changed', (event, { config }) => {
+    ipcRenderer.on('mt::cos-config-changed', (event, config) => {
       console.log('Received COS config change:', config)
       if (config) {
         commit('SET_COS_CONFIG', config)
@@ -188,7 +188,7 @@ const actions = {
 
   // Listen for COS config loaded from .tx/.config
   LISTEN_FOR_COS_CONFIG ({ commit }) {
-    ipcRenderer.on('mt::cos-config-loaded', (event, { config }) => {
+    ipcRenderer.on('mt::cos-config-loaded', (event, config) => {
       console.log('Received COS config:', config)
       if (config) {
         commit('SET_COS_CONFIG', config)
