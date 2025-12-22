@@ -44,6 +44,14 @@ class CosService {
   }
 
   /**
+   * 获取 COS 配置
+   * @returns {Object|null} COS 配置对象
+   */
+  getConfig () {
+    return this.config
+  }
+
+  /**
    * 测试 COS 连接
    * @returns {Promise<Object>} 测试结果
    */

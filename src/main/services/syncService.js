@@ -25,6 +25,114 @@ class SyncService {
   }
 
   /**
+   * 批量上传文件（并发处理）
+   * @private
+   * @param {Array} files - 要上传的文件列表
+   * @param {Function} onProgress - 进度回调
+   * @param {number} concurrency - 并发数
+   */
+  async _batchUpload (files, onProgress, concurrency = 3) {
+    const results = {
+      uploaded: [],
+      failed: []
+    }
+
+    // 分批处理
+    for (let i = 0; i < files.length; i += concurrency) {
+      if (this.syncCancelled) break
+
+      const batch = files.slice(i, i + concurrency)
+      const batchPromises = batch.map(async (file) => {
+        const uploadResult = await cosService.uploadFile(
+          file.localPath,
+          file.remotePath,
+          (progress) => {
+            if (onProgress) {
+              onProgress({
+                type: 'upload',
+                file: file.relativePath,
+                progress: progress.percent,
+                stats: this.syncStats
+              })
+            }
+          }
+        )
+
+        if (uploadResult.success) {
+          this.syncStats.uploaded++
+          results.uploaded.push(file.relativePath)
+        } else {
+          this.syncStats.failed++
+          results.failed.push({ file: file.relativePath, error: uploadResult.error })
+        }
+
+        return uploadResult
+      })
+
+      await Promise.all(batchPromises)
+
+      log.info(`批量上传进度: ${Math.min(i + concurrency, files.length)}/${files.length}`)
+    }
+
+    return results
+  }
+
+  /**
+   * 批量下载文件（并发处理）
+   * @private
+   * @param {Array} files - 要下载的文件列表
+   * @param {Function} onProgress - 进度回调
+   * @param {number} concurrency - 并发数
+   */
+  async _batchDownload (files, onProgress, concurrency = 3) {
+    const results = {
+      downloaded: [],
+      failed: []
+    }
+
+    // 分批处理
+    for (let i = 0; i < files.length; i += concurrency) {
+      if (this.syncCancelled) break
+
+      const batch = files.slice(i, i + concurrency)
+      const batchPromises = batch.map(async (file) => {
+        const downloadResult = await cosService.downloadFile(
+          file.remotePath,
+          file.localPath,
+          (progress) => {
+            if (onProgress) {
+              onProgress({
+                type: 'download',
+                file: file.relativePath,
+                progress: progress.percent,
+                stats: this.syncStats
+              })
+            }
+          }
+        )
+
+        if (downloadResult.success) {
+          if (!downloadResult.skipped) {
+            this.syncStats.downloaded++
+            results.downloaded.push(file.relativePath)
+          }
+        } else {
+          this.syncStats.failed++
+          results.failed.push({ file: file.relativePath, error: downloadResult.error })
+        }
+
+        return downloadResult
+      })
+
+      await Promise.all(batchPromises)
+
+      log.info(`批量下载进度: ${Math.min(i + concurrency, files.length)}/${files.length}`)
+    }
+
+    return results
+  }
+
+  /**
    * 开始同步操作
    * @param {Object} config - 同步配置
    * @param {string} config.localDir - 本地同步目录
@@ -106,7 +214,7 @@ class SyncService {
   }
 
   /**
-   * 上传同步：将本地文件上传到 COS
+   * 上传同步：将本地文件上传到 COS（批量上传）
    * @private
    */
   async _uploadSync (localDir, remotePrefix, onProgress) {
@@ -117,6 +225,9 @@ class SyncService {
       uploaded: [],
       failed: []
     }
+
+    // 准备需要上传的文件列表
+    const filesToUpload = []
 
     for (const file of localFiles) {
       if (this.syncCancelled) {
@@ -144,39 +255,27 @@ class SyncService {
       }
 
       if (shouldUpload) {
-        const uploadResult = await cosService.uploadFile(
-          file.path,
+        filesToUpload.push({
+          localPath: file.path,
           remotePath,
-          (progress) => {
-            if (onProgress) {
-              onProgress({
-                type: 'upload',
-                file: relativePath,
-                progress: progress.percent,
-                stats: this.syncStats
-              })
-            }
-          }
-        )
-
-        if (uploadResult.success) {
-          this.syncStats.uploaded++
-          results.uploaded.push(relativePath)
-        } else {
-          this.syncStats.failed++
-          results.failed.push({
-            file: relativePath,
-            error: uploadResult.error
-          })
-        }
+          relativePath
+        })
       }
+    }
+
+    // 批量上传
+    if (filesToUpload.length > 0 && !this.syncCancelled) {
+      log.info(`准备批量上传 ${filesToUpload.length} 个文件`)
+      const batchResult = await this._batchUpload(filesToUpload, onProgress)
+      results.uploaded = batchResult.uploaded || []
+      results.failed = batchResult.failed || []
     }
 
     return results
   }
 
   /**
-   * 下载同步：从 COS 下载文件到本地
+   * 下载同步：从 COS 下载文件到本地（批量下载）
    * @private
    */
   async _downloadSync (localDir, remotePrefix, onProgress) {
@@ -256,7 +355,7 @@ class SyncService {
           } catch (error) {
             log.error(`计算 MD5 失败: ${localPath}`, error)
             // 如果计算失败，仍然标记为需要下载
-            filesToDownload.push({ file, remotePath, localPath, relativePath })
+            filesToDownload.push({ remotePath, localPath, relativePath })
           }
         } else {
           // 大小和时间都相同，不需要下载
@@ -264,7 +363,7 @@ class SyncService {
         }
       } else {
         // 本地不存在，直接下载
-        filesToDownload.push({ file, remotePath, localPath, relativePath })
+        filesToDownload.push({ remotePath, localPath, relativePath })
       }
     }
 
@@ -275,43 +374,12 @@ class SyncService {
       return results
     }
 
-    // 第二阶段：下载非冲突文件
-    for (const { remotePath, localPath, relativePath } of filesToDownload) {
-      if (this.syncCancelled) {
-        log.info('下载同步被取消')
-        break
-      }
-
-      const downloadResult = await cosService.downloadFile(
-        remotePath,
-        localPath,
-        (progress) => {
-          if (onProgress) {
-            onProgress({
-              type: 'download',
-              file: relativePath,
-              progress: progress.percent,
-              stats: this.syncStats
-            })
-          }
-        }
-      )
-
-      if (downloadResult.success) {
-        // 只有实际下载的文件才计入统计，跳过的文件不计入
-        if (!downloadResult.skipped) {
-          this.syncStats.downloaded++
-          results.downloaded.push(relativePath)
-        } else {
-          log.info(`文件被跳过，不计入统计: ${relativePath}`)
-        }
-      } else {
-        this.syncStats.failed++
-        results.failed.push({
-          file: relativePath,
-          error: downloadResult.error
-        })
-      }
+    // 第二阶段：批量下载非冲突文件
+    if (filesToDownload.length > 0 && !this.syncCancelled) {
+      log.info(`准备批量下载 ${filesToDownload.length} 个文件`)
+      const batchResult = await this._batchDownload(filesToDownload, onProgress)
+      results.downloaded = batchResult.downloaded || []
+      results.failed = batchResult.failed || []
     }
 
     return results
@@ -405,6 +473,10 @@ class SyncService {
       failed: []
     }
 
+    // 收集需要上传和下载的文件
+    const filesToUpload = []
+    const filesToDownload = []
+
     // 处理本地文件（上传或更新）
     for (const [relativePath, localFile] of localFileMap) {
       if (this.syncCancelled) break
@@ -413,29 +485,12 @@ class SyncService {
       const remoteFile = remoteFileMap.get(relativePath)
 
       if (!remoteFile) {
-        // 远程不存在，上传
-        const uploadResult = await cosService.uploadFile(
-          localFile.path,
+        // 远程不存在，需要上传
+        filesToUpload.push({
+          localPath: localFile.path,
           remotePath,
-          (progress) => {
-            if (onProgress) {
-              onProgress({
-                type: 'upload',
-                file: relativePath,
-                progress: progress.percent,
-                stats: this.syncStats
-              })
-            }
-          }
-        )
-
-        if (uploadResult.success) {
-          this.syncStats.uploaded++
-          results.uploaded.push(relativePath)
-        } else {
-          this.syncStats.failed++
-          results.failed.push({ file: relativePath, error: uploadResult.error })
-        }
+          relativePath
+        })
       } else {
         // 比较并同步较新的版本
         const localMtime = localFile.stats.mtimeMs
@@ -457,58 +512,19 @@ class SyncService {
         }
 
         if (localMtime > remoteMtime + 1000) {
-          // 本地更新，上传
-          const uploadResult = await cosService.uploadFile(
-            localFile.path,
+          // 本地更新，需要上传
+          filesToUpload.push({
+            localPath: localFile.path,
             remotePath,
-            (progress) => {
-              if (onProgress) {
-                onProgress({
-                  type: 'upload',
-                  file: relativePath,
-                  progress: progress.percent,
-                  stats: this.syncStats
-                })
-              }
-            }
-          )
-
-          if (uploadResult.success) {
-            this.syncStats.uploaded++
-            results.uploaded.push(relativePath)
-          } else {
-            this.syncStats.failed++
-            results.failed.push({ file: relativePath, error: uploadResult.error })
-          }
+            relativePath
+          })
         } else if (remoteMtime > localMtime + 1000) {
-          // 远程更新，下载
-          const downloadResult = await cosService.downloadFile(
+          // 远程更新，需要下载
+          filesToDownload.push({
             remotePath,
-            localFile.path,
-            (progress) => {
-              if (onProgress) {
-                onProgress({
-                  type: 'download',
-                  file: relativePath,
-                  progress: progress.percent,
-                  stats: this.syncStats
-                })
-              }
-            }
-          )
-
-          if (downloadResult.success) {
-            // 只有实际下载的文件才计入统计，跳过的文件不计入
-            if (!downloadResult.skipped) {
-              this.syncStats.downloaded++
-              results.downloaded.push(relativePath)
-            } else {
-              log.info(`文件被跳过，不计入统计: ${relativePath}`)
-            }
-          } else {
-            this.syncStats.failed++
-            results.failed.push({ file: relativePath, error: downloadResult.error })
-          }
+            localPath: localFile.path,
+            relativePath
+          })
         }
       }
     }
@@ -518,40 +534,36 @@ class SyncService {
       if (this.syncCancelled) break
 
       if (!localFileMap.has(relativePath)) {
-        // 本地不存在，远程存在，下载到本地
+        // 本地不存在，远程存在，需要下载
         const remotePath = remotePrefix ? `${remotePrefix}/${relativePath}` : relativePath
         const localPath = path.join(localDir, relativePath)
 
-        log.info(`本地不存在，下载远程文件: ${remotePath}`)
-
-        const downloadResult = await cosService.downloadFile(
+        log.info(`本地不存在，准备下载远程文件: ${remotePath}`)
+        filesToDownload.push({
           remotePath,
           localPath,
-          (progress) => {
-            if (onProgress) {
-              onProgress({
-                type: 'download',
-                file: relativePath,
-                progress: progress.percent,
-                stats: this.syncStats
-              })
-            }
-          }
-        )
+          relativePath
+        })
+      }
+    }
 
-        if (downloadResult.success) {
-          if (!downloadResult.skipped) {
-            this.syncStats.downloaded++
-            results.downloaded.push(relativePath)
-            log.info(`远程文件下载成功: ${relativePath}`)
-          } else {
-            log.info(`文件被跳过，不计入统计: ${relativePath}`)
-          }
-        } else {
-          this.syncStats.failed++
-          results.failed.push({ file: relativePath, error: downloadResult.error, operation: 'download' })
-          log.error(`远程文件下载失败: ${relativePath}`, downloadResult.error)
-        }
+    // 批量上传
+    if (filesToUpload.length > 0 && !this.syncCancelled) {
+      log.info(`准备批量上传 ${filesToUpload.length} 个文件`)
+      const uploadResult = await this._batchUpload(filesToUpload, onProgress)
+      results.uploaded = uploadResult.uploaded || []
+      if (uploadResult.failed) {
+        results.failed.push(...uploadResult.failed)
+      }
+    }
+
+    // 批量下载
+    if (filesToDownload.length > 0 && !this.syncCancelled) {
+      log.info(`准备批量下载 ${filesToDownload.length} 个文件`)
+      const downloadResult = await this._batchDownload(filesToDownload, onProgress)
+      results.downloaded = downloadResult.downloaded || []
+      if (downloadResult.failed) {
+        results.failed.push(...downloadResult.failed)
       }
     }
 
