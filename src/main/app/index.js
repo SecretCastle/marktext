@@ -709,7 +709,54 @@ class App {
     })
 
     ipcMain.handle('mt::fs-trash-item', async (event, fullPath) => {
-      return shell.trashItem(fullPath)
+      try {
+        log.info(`尝试删除文件/文件夹: ${fullPath}`)
+
+        // 先尝试使用系统回收站
+        await shell.trashItem(fullPath)
+
+        log.info(`成功移动到回收站: ${fullPath}`)
+        return { success: true, method: 'trash' }
+      } catch (error) {
+        log.error(`移动到回收站失败: ${fullPath}`, error)
+
+        // 在开发模式或 Windows 上，如果回收站失败，尝试直接删除
+        if (process.env.NODE_ENV === 'development' || isWindows) {
+          try {
+            log.info(`尝试直接删除: ${fullPath}`)
+
+            const stat = await fsPromises.stat(fullPath)
+
+            if (stat.isDirectory()) {
+              // 递归删除目录
+              await fsPromises.rm(fullPath, { recursive: true, force: true })
+            } else {
+              // 删除文件
+              await fsPromises.unlink(fullPath)
+            }
+            log.info(`直接删除成功: ${fullPath}`)
+            return { success: true, method: 'direct', warning: '文件已永久删除（未移至回收站）' }
+          } catch (directDeleteError) {
+            log.error(`直接删除也失败: ${fullPath}`, directDeleteError)
+            // 提供详细的错误信息
+            let errorMessage = '删除操作失败'
+            if (directDeleteError.code === 'EBUSY') {
+              errorMessage = '文件正在被使用，请关闭相关程序后重试'
+            } else if (directDeleteError.code === 'EACCES' || directDeleteError.code === 'EPERM') {
+              errorMessage = '权限不足，请以管理员身份运行应用程序'
+            } else if (directDeleteError.code === 'ENOTEMPTY') {
+              errorMessage = '目录不为空或被占用'
+            } else {
+              errorMessage = directDeleteError.message || '删除操作失败'
+            }
+
+            throw new Error(errorMessage)
+          }
+        } else {
+          // 非开发模式且非 Windows，直接抛出原始错误
+          throw error
+        }
+      }
     })
   }
 }
