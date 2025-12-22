@@ -18,6 +18,7 @@ class SyncService {
     this.syncStats = {
       uploaded: 0,
       downloaded: 0,
+      deleted: 0,
       failed: 0,
       total: 0
     }
@@ -46,6 +47,7 @@ class SyncService {
       this.syncStats = {
         uploaded: 0,
         downloaded: 0,
+        deleted: 0,
         failed: 0,
         total: 0
       }
@@ -399,6 +401,7 @@ class SyncService {
     const results = {
       uploaded: [],
       downloaded: [],
+      deleted: [],
       failed: []
     }
 
@@ -510,40 +513,26 @@ class SyncService {
       }
     }
 
-    // 处理远程独有的文件（下载）
+    // 处理远程独有的文件（删除远程文件）
     for (const [relativePath] of remoteFileMap) {
       if (this.syncCancelled) break
 
       if (!localFileMap.has(relativePath)) {
-        const localPath = path.join(localDir, relativePath)
+        // 本地不存在，远程存在，删除远程文件
         const remotePath = remotePrefix ? `${remotePrefix}/${relativePath}` : relativePath
 
-        const downloadResult = await cosService.downloadFile(
-          remotePath,
-          localPath,
-          (progress) => {
-            if (onProgress) {
-              onProgress({
-                type: 'download',
-                file: relativePath,
-                progress: progress.percent,
-                stats: this.syncStats
-              })
-            }
-          }
-        )
+        log.info(`本地不存在，删除远程文件: ${remotePath}`)
 
-        if (downloadResult.success) {
-          // 只有实际下载的文件才计入统计，跳过的文件不计入
-          if (!downloadResult.skipped) {
-            this.syncStats.downloaded++
-            results.downloaded.push(relativePath)
-          } else {
-            log.info(`文件被跳过，不计入统计: ${relativePath}`)
-          }
+        const deleteResult = await cosService.deleteFile(remotePath)
+
+        if (deleteResult.success) {
+          this.syncStats.deleted++
+          results.deleted.push(relativePath)
+          log.info(`远程文件删除成功: ${relativePath}`)
         } else {
           this.syncStats.failed++
-          results.failed.push({ file: relativePath, error: downloadResult.error })
+          results.failed.push({ file: relativePath, error: deleteResult.error, operation: 'delete' })
+          log.error(`远程文件删除失败: ${relativePath}`, deleteResult.error)
         }
       }
     }
