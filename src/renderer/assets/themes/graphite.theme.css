@@ -68,7 +68,7 @@
   --floatHoverColor: rgba(43, 48, 50, .04);
   --floatBorderColor: rgba(0, 0, 0, .03);
   --maskColor: rgba(232, 232, 232, .8);
-  --editorAreaWidth: 750px;
+  --editorAreaWidth: 1200px;
 }
 
 .editor-tabs {
