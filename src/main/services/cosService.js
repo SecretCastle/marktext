@@ -154,79 +154,77 @@ class CosService {
    * @returns {Promise<Object>} 下载结果
    */
   async downloadFile (remotePath, localPath, onProgress = null) {
-    return new Promise(async (resolve, reject) => {
-      if (!this.cos || !this.config) {
-        reject(new Error('COS 服务未初始化'))
-        return
-      }
+    if (!this.cos || !this.config) {
+      throw new Error('COS 服务未初始化')
+    }
 
-      const { bucket, region } = this.config
+    const { bucket, region } = this.config
 
-      // 统一路径分隔符为 /
-      const normalizedRemotePath = remotePath.replace(/\\/g, '/')
+    // 统一路径分隔符为 /
+    const normalizedRemotePath = remotePath.replace(/\\/g, '/')
 
-      // 从 localPath 中提取相对路径部分
-      // 将反斜杠转换为斜杠，然后尝试匹配远程路径
-      const normalizedLocalPath = localPath.replace(/\\/g, '/')
-      // 提取路径中与 remotePath 对应的部分（去掉目录前缀）
-      const pathParts = normalizedLocalPath.split('/')
-      const remotePathParts = normalizedRemotePath.split('/')
-      // 获取本地路径的后缀部分作为相对路径
-      const localRelativePath = pathParts.slice(-remotePathParts.length).join('/')
+    // 从 localPath 中提取相对路径部分
+    // 将反斜杠转换为斜杠，然后尝试匹配远程路径
+    const normalizedLocalPath = localPath.replace(/\\/g, '/')
+    // 提取路径中与 remotePath 对应的部分（去掉目录前缀）
+    const pathParts = normalizedLocalPath.split('/')
+    const remotePathParts = normalizedRemotePath.split('/')
+    // 获取本地路径的后缀部分作为相对路径
+    const localRelativePath = pathParts.slice(-remotePathParts.length).join('/')
 
-      // 检查本地文件是否存在
-      if (fs.existsSync(localPath)) {
-        try {
-          log.info(`本地文件已存在，开始检查是否需要下载: ${localPath}`)
+    // 检查本地文件是否存在
+    if (fs.existsSync(localPath)) {
+      try {
+        log.info(`本地文件已存在，开始检查是否需要下载: ${localPath}`)
 
-          // 获取远程文件信息
-          const remoteInfo = await this.getFileInfo(remotePath)
-          log.info(`远程文件信息获取结果: success=${remoteInfo.success}, exists=${remoteInfo.exists}`)
+        // 获取远程文件信息
+        const remoteInfo = await this.getFileInfo(remotePath)
+        log.info(`远程文件信息获取结果: success=${remoteInfo.success}, exists=${remoteInfo.exists}`)
 
-          if (remoteInfo.success && remoteInfo.exists) {
-            // 计算本地文件 MD5
-            const localMD5 = await this._calculateMD5(localPath)
-            const remoteETag = remoteInfo.etag.replace(/"/g, '')
+        if (remoteInfo.success && remoteInfo.exists) {
+          // 计算本地文件 MD5
+          const localMD5 = await this._calculateMD5(localPath)
+          const remoteETag = remoteInfo.etag.replace(/"/g, '')
 
-            log.info(`路径比较 - 本地相对路径: ${localRelativePath}, 远程: ${normalizedRemotePath}`)
-            log.info(`路径是否相同: ${localRelativePath === normalizedRemotePath}`)
-            log.info(`MD5 比较 - 本地: ${localMD5}, 远程: ${remoteETag}`)
-            log.info(`MD5 是否相同: ${localMD5 === remoteETag}`)
+          log.info(`路径比较 - 本地相对路径: ${localRelativePath}, 远程: ${normalizedRemotePath}`)
+          log.info(`路径是否相同: ${localRelativePath === normalizedRemotePath}`)
+          log.info(`MD5 比较 - 本地: ${localMD5}, 远程: ${remoteETag}`)
+          log.info(`MD5 是否相同: ${localMD5 === remoteETag}`)
 
-            // 如果相对路径相同且 MD5 相同，跳过下载
-            if (localRelativePath === normalizedRemotePath && localMD5 === remoteETag) {
-              log.info(`文件已存在且内容相同，跳过下载: ${localPath}`)
-              resolve({
-                success: true,
-                skipped: true,
-                message: '文件已存在且内容相同',
-                remotePath,
-                localPath
-              })
-              return
-            } else {
-              log.info('文件需要下载：路径或内容不同')
+          // 如果相对路径相同且 MD5 相同，跳过下载
+          if (localRelativePath === normalizedRemotePath && localMD5 === remoteETag) {
+            log.info(`文件已存在且内容相同，跳过下载: ${localPath}`)
+            return {
+              success: true,
+              skipped: true,
+              message: '文件已存在且内容相同',
+              remotePath,
+              localPath
             }
           } else {
-            log.info('远程文件不存在或获取失败，继续下载')
+            log.info('文件需要下载：路径或内容不同')
           }
-        } catch (error) {
-          log.warn(`检查文件时出错，继续下载: ${error.message}`)
-          log.error('错误详情:', error)
-          // 如果检查失败，继续执行下载
+        } else {
+          log.info('远程文件不存在或获取失败，继续下载')
         }
-      } else {
-        log.info(`本地文件不存在，需要下载: ${localPath}`)
+      } catch (error) {
+        log.warn(`检查文件时出错，继续下载: ${error.message}`)
+        log.error('错误详情:', error)
+        // 如果检查失败，继续执行下载
       }
+    } else {
+      log.info(`本地文件不存在，需要下载: ${localPath}`)
+    }
 
-      // 确保目标目录存在
-      const dir = path.dirname(localPath)
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
+    // 确保目标目录存在
+    const dir = path.dirname(localPath)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
 
-      log.info(`开始下载文件: ${remotePath} -> ${localPath}`)
+    log.info(`开始下载文件: ${remotePath} -> ${localPath}`)
 
+    return new Promise((resolve, reject) => {
       this.cos.getObject({
         Bucket: bucket,
         Region: region,
