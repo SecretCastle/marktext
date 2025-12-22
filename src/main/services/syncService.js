@@ -513,26 +513,44 @@ class SyncService {
       }
     }
 
-    // 处理远程独有的文件（删除远程文件）
+    // 处理远程独有的文件（下载到本地）
     for (const [relativePath] of remoteFileMap) {
       if (this.syncCancelled) break
 
       if (!localFileMap.has(relativePath)) {
-        // 本地不存在，远程存在，删除远程文件
+        // 本地不存在，远程存在，下载到本地
         const remotePath = remotePrefix ? `${remotePrefix}/${relativePath}` : relativePath
+        const localPath = path.join(localDir, relativePath)
 
-        log.info(`本地不存在，删除远程文件: ${remotePath}`)
+        log.info(`本地不存在，下载远程文件: ${remotePath}`)
 
-        const deleteResult = await cosService.deleteFile(remotePath)
+        const downloadResult = await cosService.downloadFile(
+          remotePath,
+          localPath,
+          (progress) => {
+            if (onProgress) {
+              onProgress({
+                type: 'download',
+                file: relativePath,
+                progress: progress.percent,
+                stats: this.syncStats
+              })
+            }
+          }
+        )
 
-        if (deleteResult.success) {
-          this.syncStats.deleted++
-          results.deleted.push(relativePath)
-          log.info(`远程文件删除成功: ${relativePath}`)
+        if (downloadResult.success) {
+          if (!downloadResult.skipped) {
+            this.syncStats.downloaded++
+            results.downloaded.push(relativePath)
+            log.info(`远程文件下载成功: ${relativePath}`)
+          } else {
+            log.info(`文件被跳过，不计入统计: ${relativePath}`)
+          }
         } else {
           this.syncStats.failed++
-          results.failed.push({ file: relativePath, error: deleteResult.error, operation: 'delete' })
-          log.error(`远程文件删除失败: ${relativePath}`, deleteResult.error)
+          results.failed.push({ file: relativePath, error: downloadResult.error, operation: 'download' })
+          log.error(`远程文件下载失败: ${relativePath}`, downloadResult.error)
         }
       }
     }
